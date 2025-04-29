@@ -4,7 +4,9 @@ import json
 import gradio as gr
 from openai import OpenAI
 import folium
-from folium.plugins import MarkerCluster, LatLngPopup
+# في بداية الملف app.py، السطر السابع تقريبًا (معدل)
+from folium.plugins import MarkerCluster # <--- قم بإزالة LatLngPopup من هنا
+
 from geopy.distance import geodesic
 from IPython.display import display, HTML # Gradio might not need this directly but good for testing
 
