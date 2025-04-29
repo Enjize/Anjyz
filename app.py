@@ -181,27 +181,50 @@ def get_athar_analysis_enhanced(context):
         return f"Error: Could not get analysis from AI. Details: {e}"
 
 # --- Map Creation ---
-# ...existing code...
 def create_integrated_output_map(target_lat, target_lon, activity_type, licenses_data, pois_data):
     """Creates a Folium map showing target, competitors, and POIs."""
     if target_lat is None or target_lon is None:
          # Return an initial map centered on Yasmin if no coords selected
          map_obj = folium.Map(location=YASMEN_CENTER, zoom_start=14, tiles='CartoDB positron')
-         # Add JavaScript to update Gradio fields on click
          map_obj.add_child(folium.LatLngPopup()) # Shows coords on click
 
          # Custom JS to update Gradio input fields
-         # Note: This relies on the specific structure/IDs Gradio generates, which might change.
-         # We target the number inputs by their placeholder text as a workaround.
+         # Find inputs associated with labels containing "Latitude" and "Longitude"
          js = """
             <script>
             function updateGradioCoords(lat, lon) {
                 console.log("Map clicked at:", lat, lon);
-                // Find the Gradio number input elements. This is fragile.
-                // It assumes the Gradio interface structure won't change drastically.
-                // We look for the specific number inputs used for lat/lon.
-                var latInput = document.querySelector("input[type='number'][step='any'][placeholder='Latitude']"); // Adjust selector if needed
-                var lonInput = document.querySelector("input[type='number'][step='any'][placeholder='Longitude']"); // Adjust selector if needed
+
+                // Function to find input associated with a label containing specific text
+                function findInputByLabelText(labelText) {
+                    const labels = document.querySelectorAll('label');
+                    for (const label of labels) {
+                        if (label.textContent.includes(labelText)) {
+                            // Try finding the input within the label's parent container or nearby elements
+                            const container = label.closest('div, fieldset'); // Common Gradio containers
+                            if (container) {
+                                const input = container.querySelector("input[type='number']");
+                                if (input) return input;
+                            }
+                            // Fallback: Check sibling elements more broadly
+                            let sibling = label.nextElementSibling;
+                            while(sibling) {
+                                const input = sibling.querySelector("input[type='number']");
+                                if (input) return input;
+                                sibling = sibling.nextElementSibling;
+                            }
+                        }
+                    }
+                     // Fallback: Try finding based on aria-label if Gradio uses it
+                    const inputByAriaLabel = document.querySelector(`input[type='number'][aria-label*='${labelText}']`);
+                    if (inputByAriaLabel) return inputByAriaLabel;
+
+                    console.warn(`Could not find input associated with label: ${labelText}`);
+                    return null; // Not found
+                }
+
+                var latInput = findInputByLabelText("Latitude");
+                var lonInput = findInputByLabelText("Longitude");
 
                 if (latInput && lonInput) {
                     console.log("Found input fields:", latInput, lonInput);
@@ -209,7 +232,6 @@ def create_integrated_output_map(target_lat, target_lon, activity_type, licenses
                     lonInput.value = lon.toFixed(6);
 
                     // Trigger input/change events to notify Gradio of the update
-                    // Need both 'input' and 'change' for Gradio to reliably pick it up.
                     var inputEvent = new Event('input', { bubbles: true });
                     var changeEvent = new Event('change', { bubbles: true });
                     latInput.dispatchEvent(inputEvent);
@@ -218,60 +240,42 @@ def create_integrated_output_map(target_lat, target_lon, activity_type, licenses
                     lonInput.dispatchEvent(changeEvent);
                     console.log("Updated Gradio fields");
 
-                    // Optional: Add a temporary marker (will be replaced on analysis)
-                    // This requires Leaflet (L) to be available, which Folium uses.
-                    // if (typeof L !== 'undefined' && typeof map !== 'undefined') {
-                    //     L.marker([lat, lon]).addTo(map).bindPopup('Selected Location').openPopup();
-                    // }
-
                 } else {
-                    console.error("Could not find Gradio latitude/longitude input fields.");
+                    console.error("Could not find Gradio latitude/longitude input fields using labels.");
+                    // Optional: Add more fallback selectors if needed
                 }
             }
 
-            // Add click listener to the map
-            // Ensure this runs *after* the map object ('map_div_id') is created by Folium/Gradio
-            // We might need to wrap this in a function called by Folium's rendering process
-            // or use a MutationObserver. For simplicity, let's try adding it directly.
-
-            // Assuming the map object created by Folium is named 'map_...'
-            // We need to find the correct map object in the global scope or attach the event differently.
-            // Folium map objects are often named like 'map_a1b2c3d4...'
-            // A more robust way is to attach the event within the Folium map generation if possible.
-
-            // Let's try adding the listener directly to the map div Folium creates.
-            // We need the ID of the div where Folium renders the map.
-            // Let's assume Gradio renders the HTML output in a div, and Folium map is inside.
-            // We'll use a general approach targeting the map container.
-
+            // Use MutationObserver to robustly attach the click listener once the map is ready
             document.addEventListener('DOMContentLoaded', function() {
-                // Find the map container (might need adjustment based on Gradio's output structure)
-                var mapElement = document.querySelector('.folium-map'); // Adjust if Folium uses a different class
-                if (mapElement && mapElement.__folium_map) { // Check if Folium attached the map object
-                     mapElement.__folium_map.on('click', function(e) {
-                         updateGradioCoords(e.latlng.lat, e.latlng.lng);
-                     });
-                     console.log("Map click listener attached.");
-                } else {
-                     // Fallback or alternative method if the above doesn't work
-                     console.warn("Could not attach click listener directly to Folium map object. Trying LatLngPopup approach.");
-                     // The folium.LatLngPopup() added earlier might be sufficient if it triggers updates,
-                     // but we want to update specific fields.
-                     // Let's rely on the custom JS within the map's HTML source.
-                }
+                const observer = new MutationObserver(function(mutations, obs) {
+                    // Look for the Folium map container
+                    const mapElement = document.querySelector('.folium-map');
+                    if (mapElement && mapElement.__folium_map) { // Check if Folium object is attached
+                        const map = mapElement.__folium_map;
+                        // Ensure listener isn't added multiple times
+                        if (!map.hasEventListeners('click')) {
+                             map.on('click', function(e) {
+                                 updateGradioCoords(e.latlng.lat, e.latlng.lng);
+                             });
+                             console.log("Map click listener attached via MutationObserver.");
+                             // Optionally disconnect if the map element doesn't get re-rendered often
+                             // obs.disconnect();
+                        }
+                    }
+                });
+
+                // Start observing the body for added nodes
+                observer.observe(document.body, {
+                    childList: true, // Observe direct children additions/removals
+                    subtree: true    // Observe all descendants
+                });
             });
-
-
             </script>
             """
          # Embed the JavaScript into the map's HTML
-         # This is a bit hacky, injecting script into the rendered HTML
-         map_html = map_obj.get_root().render()
-         map_html_with_js = map_html.replace('</head>', f'{js}</head>') # Inject JS into head
-         # Instead of returning map_obj._repr_html_(), return the modified HTML string
-         # We need Gradio to render this HTML. Use gr.HTML output.
-         # The function will now return HTML string instead of map object representation.
-         # This requires changing the Gradio output component for the map to gr.HTML.
+         html_figure = map_obj.get_root()
+         html_figure.header.add_child(branca.element.Element(js)) # Add JS to head
 
          # Add a simple popup instruction
          folium.Marker(
@@ -282,8 +286,7 @@ def create_integrated_output_map(target_lat, target_lon, activity_type, licenses
          ).add_to(map_obj)
 
          # Return the HTML representation for Gradio's HTML component
-         return map_obj._repr_html_() # Still return HTML for gr.Plot or gr.HTML
-
+         return map_obj._repr_html_()
 
     # --- Existing map generation logic when lat/lon ARE provided ---
     map_obj = folium.Map(location=[target_lat, target_lon], zoom_start=16, tiles='CartoDB positron')
@@ -351,8 +354,6 @@ def analyze_investment(activity_type, latitude, longitude):
     if not activity_type:
         return "Please select a business activity.", create_integrated_output_map(None, None, None, None, None) # Return initial map
     if latitude is None or longitude is None:
-        # If called without coordinates (e.g., initial load or after invalid click)
-        # Return only the initial map with click instructions
         return "Please click on the map to select a location.", create_integrated_output_map(None, None, None, None, None)
     if not (-90 <= latitude <= 90 and -180 <= longitude <= 180):
          return "Invalid latitude or longitude values.", create_integrated_output_map(YASMEN_CENTER[0], YASMEN_CENTER[1], activity_type, None, None) # Show map centered
@@ -387,6 +388,7 @@ def analyze_investment(activity_type, latitude, longitude):
 
     return analysis_text, output_map_html
 
+
 # --- Gradio Interface ---
 # Define activity choices (example list, expand as needed)
 activity_choices = [
@@ -396,25 +398,21 @@ activity_choices = [
     "Flower Shop", "Pet Store", "Clinic", "Car Wash", "Coffee Shop"
 ]
 
-# Use gr.HTML for map output to render the Folium HTML including JavaScript
-# Make lat/lon inputs non-interactive initially, they will be updated by map click
 with gr.Blocks(theme=gr.themes.Soft(), title="Athar - Investment Analysis") as demo:
     gr.Markdown("# Athar - Investment Opportunity Analysis (Al Yasmin, Riyadh)")
     gr.Markdown("Select a business activity and **click on the map** to choose your proposed location.")
 
     with gr.Row():
         activity = gr.Dropdown(choices=activity_choices, label="Business Activity Type")
-        # Make Lat/Lon inputs visible but not directly editable by user initially
-        # They will display the coordinates selected from the map.
-        lat_input = gr.Number(label="Latitude", placeholder="Latitude", info="Click map to set", interactive=False)
-        lon_input = gr.Number(label="Longitude", placeholder="Longitude", info="Click map to set", interactive=False)
+        # Remove 'placeholder' argument
+        lat_input = gr.Number(label="Latitude", info="Click map to set", interactive=False)
+        lon_input = gr.Number(label="Longitude", info="Click map to set", interactive=False)
 
     analyze_button = gr.Button("Analyze Investment Opportunity")
 
     with gr.Row():
         analysis_output = gr.Markdown(label="Analysis Results")
-        # Use gr.HTML to render the Folium map HTML, including our custom JS
-        map_output = gr.HTML(label="Interactive Map")
+        map_output = gr.HTML(label="Interactive Map") # Keep using gr.HTML
 
     # Define the interaction: Button click triggers analysis
     analyze_button.click(
@@ -424,8 +422,6 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Athar - Investment Analysis") as d
     )
 
     # Load initial map on interface load
-    # We need a way to trigger the map creation initially.
-    # We can call analyze_investment with None values to get the initial map.
     demo.load(
         fn=lambda: ( "Please select an activity and click the map.", create_integrated_output_map(None, None, None, None, None) ),
         inputs=None,
