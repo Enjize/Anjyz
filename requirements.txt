@@ -1,6 +1,5 @@
 openai
 folium
 geopy
-gradio>=5.19.0
+gradio
 python-dotenv
-branca
