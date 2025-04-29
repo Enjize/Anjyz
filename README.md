@@ -4,7 +4,7 @@ emoji: 🗺️📈💡
 colorFrom: blue
 colorTo: green
 sdk: gradio
-sdk_version: 4.29.0 # تحديد نسخة حديثة لضمان عمل gr.Map
+sdk_version: 4.44.1 # تحديد نسخة حديثة لضمان عمل gr.Map
 app_file: app.py
 pinned: false
 python_version: 3.11 # يمكنك تغييرها أو إزالتها إذا أردت
