@@ -8,6 +8,13 @@ from folium.plugins import MarkerCluster, LatLngPopup
 from geopy.distance import geodesic
 from IPython.display import display, HTML # Gradio might not need this directly but good for testing
 
+from dotenv import load_dotenv
+import os
+
+load_dotenv()  # يحمل متغيرات البيئة من ملف .env
+api_key = os.environ.get("OPENAI_API_KEY")
+
+
 print("Gradio App: Importing libraries...")
 
 # --- Configuration & Constants ---
