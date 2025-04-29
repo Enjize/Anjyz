@@ -1,5 +1,6 @@
 openai
 folium
 geopy
-gradio>=4.44.1
-python-dotenv
+streamlit>=1.30.0
+streamlit-folium>=0.14.0
+python-dotenv # للاختبار المحلي للمفاتيح السرية
