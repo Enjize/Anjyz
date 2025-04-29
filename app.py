@@ -2,7 +2,6 @@
 import os
 import json
 import gradio as gr
-from gradio.components.map import Map
 from openai import OpenAI
 import folium
 # في بداية الملف app.py، السطر السابع تقريبًا (معدل)
@@ -12,6 +11,7 @@ from geopy.distance import geodesic
 
 from dotenv import load_dotenv
 import os
+import time # Required for unique filename
 
 load_dotenv()  # يحمل متغيرات البيئة من ملف .env
 api_key = os.environ.get("OPENAI_API_KEY")
@@ -223,130 +223,152 @@ def get_athar_analysis_enhanced(llm_client, context_summary):
 
 
 def create_integrated_output_map(profile, pois, competitors_list, proposed_loc, selected_activity):
-    """Creates the final map showing proposed location, competitors, and POIs."""
-    # ...(Implementation from previous responses - ensure it uses loaded data)...
-    if not profile or not proposed_loc: return None        
+    """Creates the final map, saves it to HTML, and returns the file path."""
+    if not profile or not proposed_loc:
+        print("Map Error: Missing profile or proposed location.")
+        return None
+
     center_lat, center_lon = proposed_loc[0], proposed_loc[1]
     zoom_start = 15 
-
     output_map = folium.Map(location=[center_lat, center_lon], zoom_start=zoom_start, tiles='CartoDB positron')
 
     # Add Proposed Location Marker
-    folium.Marker(
-        location=proposed_loc,
-        popup=f"<b>الموقع المقترح</b><br>للنشاط: {selected_activity}",
-        tooltip="الموقع المقترح",
-        icon=folium.Icon(color='green', icon='star', prefix='fa')
-    ).add_to(output_map)
-
+    folium.Marker(location=proposed_loc, popup=f"<b>الموقع المقترح</b><br>للنشاط: {selected_activity}", 
+                  tooltip="الموقع المقترح", icon=folium.Icon(color='green', icon='star', prefix='fa')).add_to(output_map)
+    
     # Add Competitors
     if competitors_list:
         comp_cluster = MarkerCluster(name=f"منافسون ({selected_activity})").add_to(output_map)
         for comp in competitors_list:
-             dist_text = f"{comp['distance_km']:.2f} كم" if comp.get('distance_km') is not None else "N/A"
-             popup_html = f"<b>{comp['name']}</b><br><i>منافس</i><br>المسافة: {dist_text}"
-             folium.Marker( location=[comp['lat'], comp['lon']], popup=folium.Popup(popup_html, max_width=250),
-                 tooltip=f"{comp['name']} (منافس)", icon=folium.Icon(color='red', icon='briefcase', prefix='fa')
-             ).add_to(comp_cluster)
-
+            dist_text = f"{comp['distance_km']:.2f} كم" if comp.get('distance_km') is not None else "N/A"
+            popup_html = f"<b>{comp['name']}</b><br><i>منافس</i><br>المسافة: {dist_text}"
+            folium.Marker(
+                location=[comp['lat'], comp['lon']], 
+                popup=folium.Popup(popup_html, max_width=250),
+                tooltip=f"{comp['name']} (منافس)", 
+                icon=folium.Icon(color='red', icon='briefcase', prefix='fa')
+            ).add_to(comp_cluster)
+    
     # Add POIs
     if pois:
         poi_cluster = MarkerCluster(name="نقاط الاهتمام").add_to(output_map)
         for poi in pois:
-           try:
+            try:
                 loc = poi.get('location', {})
                 lat = loc.get('latitude')
                 lon = loc.get('longitude')
                 if lat is not None and lon is not None:
-                        name = poi.get('name_ar', 'غير معروف')
-                        category = poi.get('category', 'غير معروف')
-                        subcategory = poi.get('subcategory', '')
-                        icon_name = 'info-circle'; icon_color = 'blue'      
-                        if category.lower() == 'education': icon_name = 'graduation-cap'; icon_color = 'darkblue'
-                        elif category.lower() == 'healthcare': icon_name = 'hospital-o'; icon_color = 'red'
-                        elif category.lower() == 'shopping': icon_name = 'shopping-cart'; icon_color = 'purple'
-                        elif category.lower() == 'recreation': icon_name = 'tree'; icon_color = 'green'
-                        elif category.lower() == 'religious': icon_name = 'moon-o'; icon_color = 'darkgreen'
-                        elif category.lower() == 'services': icon_name = 'bank'; icon_color = 'cadetblue'
-                        popup_html = f"<b>{name}</b><br>الفئة: {category} ({subcategory})"
-                        folium.Marker( location=[lat, lon], popup=folium.Popup(popup_html, max_width=300),
-                            tooltip=name, icon=folium.Icon(color=icon_color, icon=icon_name, prefix='fa', icon_size=(20,20))
-                        ).add_to(poi_cluster) 
-           except Exception as e: print(f"Map Error adding POI {poi.get('poi_id', '')}: {e}") 
-        
+                    name = poi.get('name_ar', 'اسم غير معروف')
+                    category = poi.get('category', 'غير معروف')
+                    subcategory = poi.get('subcategory', '')
+                    icon_name = 'info-circle'; icon_color = 'blue'      
+                    if category.lower() == 'education': icon_name = 'graduation-cap'; icon_color = 'darkblue'
+                    elif category.lower() == 'healthcare': icon_name = 'hospital-o'; icon_color = 'red'
+                    elif category.lower() == 'shopping': icon_name = 'shopping-cart'; icon_color = 'purple'
+                    elif category.lower() == 'recreation': icon_name = 'tree'; icon_color = 'green'
+                    elif category.lower() == 'religious': icon_name = 'moon-o'; icon_color = 'darkgreen'
+                    elif category.lower() == 'services': icon_name = 'bank'; icon_color = 'cadetblue'
+                    popup_html = f"<b>{name}</b><br>الفئة: {category} ({subcategory})"
+                    folium.Marker(
+                        location=[lat, lon], 
+                        popup=folium.Popup(popup_html, max_width=300),
+                        tooltip=name, 
+                        icon=folium.Icon(color=icon_color, icon=icon_name, prefix='fa', icon_size=(20,20))
+                    ).add_to(poi_cluster)
+            except Exception as e: 
+                print(f"Map Error adding POI {poi.get('poi_id', '')}: {e}")
+
     folium.LayerControl().add_to(output_map)
-    print("Gradio App: Output map created.")
-    return output_map
 
+    # Save map to temporary HTML file
+    timestamp = int(time.time() * 1000)  # Use timestamp for unique filename
+    map_filename = f"output_map_{timestamp}.html" 
+    try:
+        output_map.save(map_filename)
+        print(f"Gradio App: Output map saved to {map_filename}")
+        return map_filename 
+    except Exception as e:
+        print(f"Gradio App Error: Failed to save map to HTML - {e}")
+        return None
 
-# --- Gradio Main Function ---
-def run_athar_analysis_gradio(selected_activity, proposed_lat, proposed_lon):
-    """Main function called by Gradio interface."""
-    print(f"Gradio App: Received request - Activity: {selected_activity}, Lat: {proposed_lat}, Lon: {proposed_lon}")
-    # Basic Input Validation
-    if not selected_activity:
+# Modified function to work with gr.Map input
+def run_athar_analysis_gradio(selected_activity, map_location_input):
+    """Main function called by Gradio interface, taking map input."""
+    print(f"Gradio App: Received request - Activity: {selected_activity}, Map Input: {map_location_input}")
+
+    # Check map input
+    if map_location_input is None or not isinstance(map_location_input, dict) or \
+       'latitude' not in map_location_input or 'longitude' not in map_location_input:
+        return "الرجاء تحديد الموقع المقترح على الخريطة أولاً بالضغط عليه.", None
+        
+    proposed_lat = map_location_input['latitude']
+    proposed_lon = map_location_input['longitude']
+
+    # Check inputs and API key
+    if not client: 
+        return "خطأ: OpenAI API key غير مهيأ.", None
+    if not selected_activity: 
         return "الرجاء اختيار نشاط تجاري أولاً.", None
-    if proposed_lat is None or proposed_lon is None:
-        return "الرجاء إدخال خط العرض وخط الطول للموقع المقترح.", None
-    # Validate coordinates are within reasonable bounds for Riyadh (optional but good)
     if not (24.0 < proposed_lat < 25.5 and 46.0 < proposed_lon < 47.5):
-         return "إحداثيات الموقع المقترح تبدو غير صحيحة (خارج نطاق الرياض).", None
-    # Check if data loaded
-    if not data_loaded_successfully:
-        return "خطأ: فشل تحميل ملفات البيانات الأساسية.", None
-    # Check if API client is ready
-    if not client:
-        return "خطأ: لم يتم إعداد مفتاح OpenAI API بشكل صحيح.", None
+        return f"الموقع المحدد على الخريطة ({proposed_lat:.4f}, {proposed_lon:.4f}) يبدو خارج نطاق الرياض المتوقع. حاول مرة أخرى.", None
+    if not data_loaded_successfully: 
+        return "خطأ: فشل تحميل البيانات.", None
 
-    # 1. Prepare Context
+    # 1. Prepare context
     context, proposed_location_tuple, competitors_list = prepare_enhanced_context_for_llm(
         neighborhood_profile, licenses_data, pois_data, 
         selected_activity, proposed_lat, proposed_lon
     )
     
-    # 2. Get LLM Analysis
-    analysis_text = "فشل في الحصول على التحليل." # Default message
+    # 2. Get LLM analysis
+    analysis_text = "فشل في الحصول على التحليل." 
     if context:
         analysis_text = get_athar_analysis_enhanced(client, context)
         
-    # 3. Create Output Map
-    output_map = None
+    # 3. Create integrated map
+    map_html_path = None
     if proposed_location_tuple:
-        output_map = create_integrated_output_map(
-             neighborhood_profile, pois_data, competitors_list, 
-             proposed_location_tuple, selected_activity
+        map_html_path = create_integrated_output_map(
+            neighborhood_profile, pois_data, competitors_list, 
+            proposed_location_tuple, selected_activity
         )
 
+    # 4. Build HTML response for the map
+    map_html_content = "<p>لم يتم إنشاء الخريطة.</p>" 
+    if map_html_path:
+        map_html_content = f'<iframe src="file={map_html_path}" width="100%" height="500px" style="border:none;"></iframe>'
+        
     print("Gradio App: Analysis and map generation complete.")
-    # Gradio's gr.Plot can handle folium map objects directly
-    return analysis_text, output_map 
+    return analysis_text, map_html_content
 
-# --- Gradio Interface Definition ---
+# Define the Gradio interface
 print("Gradio App: Defining Gradio interface...")
 with gr.Blocks(theme=gr.themes.Soft(), title="Athar Investment Analyzer") as iface:
     gr.Markdown("# مشروع أثر - تحليل فرص الاستثمار التجاري")
-    gr.Markdown("أداة تجريبية لتحليل مدى مناسبة فتح نشاط تجاري في **حي الياسمين بالرياض** بناءً على بيانات وهمية. أدخل النشاط والموقع المقترح للحصول على تحليل.")
+    gr.Markdown("أداة تجريبية لتحليل مدى مناسبة فتح نشاط تجاري في **حي الياسمين بالرياض**. اختر النشاط وحدد الموقع المقترح على الخريطة.")
     
     with gr.Row():
         with gr.Column(scale=1):
-            activity_input = gr.Dropdown(choices=available_activities_list, label="1. اختر النشاط التجاري")
-            map_input = Map(
-                interactive=True,
-                label="2. اختر موقع النشاط على الخريطة",
-                value={'lat': (LAT_MIN+LAT_MAX)/2, 'lng': (LON_MIN+LON_MAX)/2},
-                zoom=15
+            activity_input = gr.Dropdown(
+                choices=available_activities_list, 
+                label="1. اختر النشاط التجاري"
+            )
+            # Use gr.Map component for location input
+            map_input = gr.Map(
+                label="2. حدد الموقع المقترح على الخريطة"
             )
             submit_button = gr.Button("🚀 تحليل الفرصة", variant="primary")
-
+            
         with gr.Column(scale=2):
             analysis_output = gr.Textbox(
                 label="تحليل وتوصية أثر:", 
                 lines=12,
-                interactive=False # Make output non-editable
+                interactive=False 
             )
-            map_output = gr.Plot(label="الخريطة التفاعلية للنتائج")
+            # Use HTML component for output map
+            map_output = gr.HTML(label="الخريطة التفاعلية للنتائج")
 
-    # ربط المُدخلات والمخرجات
+    # Update input/output connections
     submit_button.click(
         fn=run_athar_analysis_gradio,
         inputs=[activity_input, map_input],
@@ -357,9 +379,7 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Athar Investment Analyzer") as ifa
 
 print("Gradio App: Interface defined.")
 
-# --- Launch the Gradio App ---
+# Launch the Gradio App
 if __name__ == "__main__":
     print("Gradio App: Launching interface...")
-    # queue() enables handling multiple users if deployed
-    # share=True creates a temporary public link (useful for testing from VS Code tunnel?)
-    iface.queue().launch(debug=False) # Set debug=True for more detailed logs if needed
+    iface.queue().launch(debug=False)
