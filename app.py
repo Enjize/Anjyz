@@ -2,7 +2,7 @@
 import os
 import json
 import gradio as gr
-print(f"Gradio version at runtime: {gr.__version__}") # <<< أضف هذا السطر
+print(f"Gradio version at runtime: {gr.__version__}") # Added version print
 
 from openai import OpenAI
 import folium
@@ -21,6 +21,8 @@ api_key = os.environ.get("OPENAI_API_KEY")
 print("Gradio App: Importing libraries...")
 
 # --- Configuration & Constants ---
+
+
 NEIGHBORHOOD_ID_TO_ANALYZE = "SA-RIY-YAS"
 # Approximate bounds (used for validation/context)
 LAT_MIN, LAT_MAX = 24.79, 24.81
@@ -32,6 +34,8 @@ LICENSES_FILE = 'fake_licenses_SA-RIY-YAS_openai.json'
 POIS_FILE = 'fake_pois_SA-RIY-YAS_openai.json'
 
 # --- OpenAI Client Setup ---
+
+
 # IMPORTANT: Read API Key from Hugging Face Secrets
 api_key = os.environ.get("OPENAI_API_KEY")
 client = None
@@ -224,7 +228,6 @@ def get_athar_analysis_enhanced(llm_client, context_summary):
 
 
 # --- تعديل دالة إنشاء الخريطة النهائية (داخل app.py) ---
-# --- تعديل دالة إنشاء الخريطة النهائية (داخل app.py) ---
 import time # Required for unique filename
 
 def create_integrated_output_map(profile, pois, competitors_list, proposed_loc, selected_activity):
@@ -355,7 +358,18 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Athar Investment Analyzer") as ifa
                 choices=available_activities_list,
                 label="1. اختر النشاط التجاري",
             )
-            map_input = gr.Map( # استخدام gr.Map للإدخال
+            
+            # --- طباعة السمات المتاحة قبل استدعاء gr.Map ---
+            print("--- Attributes available under 'gr' alias just before gr.Map call: ---")
+            try:
+                # فرز القائمة لتسهيل القراءة
+                print(sorted(dir(gr))) 
+            except Exception as e_dir:
+                print(f"Could not print dir(gr): {e_dir}")
+            print("--------------------------------------------------------------------")
+            # --------------------------------------------------
+
+            map_input = gr.Map( 
                 label="2. حدد الموقع المقترح على الخريطة",
             )
             submit_button = gr.Button("🚀 تحليل الفرصة", variant="primary")
