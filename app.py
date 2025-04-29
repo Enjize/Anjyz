@@ -8,7 +8,6 @@ import folium
 from folium.plugins import MarkerCluster # <--- قم بإزالة LatLngPopup من هنا
 
 from geopy.distance import geodesic
-from IPython.display import display, HTML # Gradio might not need this directly but good for testing
 
 from dotenv import load_dotenv
 import os
