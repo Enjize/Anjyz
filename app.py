@@ -2,6 +2,8 @@
 import os
 import json
 import gradio as gr
+print(f"Gradio version at runtime: {gr.__version__}") # <<< أضف هذا السطر
+
 from openai import OpenAI
 import folium
 # في بداية الملف app.py، السطر السابع تقريبًا (معدل)
