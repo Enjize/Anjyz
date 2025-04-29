@@ -2,3 +2,4 @@ openai
 folium
 geopy
 gradio
+python-dotenv
