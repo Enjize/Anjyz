@@ -2,6 +2,7 @@
 import os
 import json
 import gradio as gr
+from gradio.components import Map   # ← أضف هذا السطر
 from openai import OpenAI
 import folium
 # في بداية الملف app.py، السطر السابع تقريبًا (معدل)
@@ -329,7 +330,7 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Athar Investment Analyzer") as ifa
     with gr.Row():
         with gr.Column(scale=1):
             activity_input = gr.Dropdown(choices=available_activities_list, label="1. اختر النشاط التجاري")
-            map_input = gr.Map(
+            map_input = Map(
                 interactive=True,
                 label="2. اختر موقع النشاط على الخريطة",
                 value={'lat': (LAT_MIN+LAT_MAX)/2, 'lng': (LON_MIN+LON_MAX)/2},
