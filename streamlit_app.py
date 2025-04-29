@@ -169,12 +169,11 @@ def get_athar_analysis_enhanced(llm_client, context_summary):
     # ...(Implementation from previous responses - ensure error handling)...
     if not llm_client: return "خطأ: OpenAI Client غير مهيأ."
     if not context_summary: return "خطأ: سياق البيانات فارغ."
-    analysis_prompt = f"""أنت مساعد "أثر" لتحليل الاستثمار بالسعودية. حلل البيانات التالية وقدم توصية واضحة (فرصة واعدة, ممكن مع اعتبارات, منطقة مشبعة/موقع غير مثالي) مع تعليل موجز (100-150 كلمة) يربط بين المنافسة، الموقع المقترح، بيانات الحي، ونقاط الاهتمام القريبة. الرد بالعربية.\n\nالبيانات:\n{context_summary}"""
+    analysis_prompt = f"أنت مساعد ذكي في مشروع «أثر» لتحليل فرص الاستثمار التجاري في المملكة العربية السعودية. استلم البيانات التالية وقدّم توصية استثمارية واضحة ضمن أحد الخيارات التالية: فرصة واعدة، ممكنة مع مراعاة اعتبارات محددة، موقع مشبع/غير مثالي. يرجى تضمين شرح يربط بين: مستوى المنافسة في السوق، الموقع المقترح، الخصائص الديموغرافية والاقتصادية للحي، ونقاط الاهتمام القريبة. اكتب الرد باللغة العربية وبأسلوب مهني وواضح. البيانات: {context_summary}"
     try:
         print("Streamlit App: Sending request to LLM...")
         completion = llm_client.chat.completions.create(
-            model="gpt-4o", messages=[ {"role": "system", "content": "مساعد تحليل استثماري متخصص."}, {"role": "user", "content": analysis_prompt} ],
-            temperature=0.6, max_tokens=300 )
+            model="o4-mini", messages=[ {"role": "system", "content": "مساعد تحليل استثماري متخصص."}, {"role": "user", "content": analysis_prompt} ] )
         analysis_result = completion.choices[0].message.content
         print("Streamlit App: Received response from LLM.")
         return analysis_result
