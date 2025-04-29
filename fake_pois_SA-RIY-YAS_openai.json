@@ -1,0 +1,212 @@
+[
+  {
+    "poi_id": "POI-YAS-EDU-01",
+    "name_ar": "مدرسة الياسمين الابتدائية",
+    "name_en": "Al Yasmin Elementary School",
+    "category": "Education",
+    "subcategory": "Public School",
+    "location": {
+      "neighborhood_id": "SA-RIY-YAS",
+      "latitude": 24.7992,
+      "longitude": 46.6357
+    },
+    "source": "MOMRAH",
+    "last_verified": "2023-11-15"
+  },
+  {
+    "poi_id": "POI-YAS-EDU-02",
+    "name_ar": "روضة الياسمين الخاصة",
+    "name_en": "Al Yasmin Private Kindergarten",
+    "category": "Education",
+    "subcategory": "Kindergarten",
+    "location": {
+      "neighborhood_id": "SA-RIY-YAS",
+      "latitude": 24.8054,
+      "longitude": 46.6282
+    },
+    "source": "Field Survey",
+    "last_verified": "2024-01-20"
+  },
+  {
+    "poi_id": "POI-YAS-HEA-01",
+    "name_ar": "مستشفى الياسمين التخصصي",
+    "name_en": "Al Yasmin Specialist Hospital",
+    "category": "Healthcare",
+    "subcategory": "Hospital",
+    "location": {
+      "neighborhood_id": "SA-RIY-YAS",
+      "latitude": 24.8079,
+      "longitude": 46.6431
+    },
+    "source": "Ministry Website",
+    "last_verified": "2023-08-05"
+  },
+  {
+    "poi_id": "POI-YAS-HEA-02",
+    "name_ar": "عيادة الياسمين الطبية",
+    "name_en": "Al Yasmin Medical Clinic",
+    "category": "Healthcare",
+    "subcategory": "Clinic",
+    "location": {
+      "neighborhood_id": "SA-RIY-YAS",
+      "latitude": 24.7964,
+      "longitude": 46.6338
+    },
+    "source": "OpenStreetMap",
+    "last_verified": "2024-04-10"
+  },
+  {
+    "poi_id": "POI-YAS-HEA-03",
+    "name_ar": "صيدلية الياسمين",
+    "name_en": "Al Yasmin Pharmacy",
+    "category": "Healthcare",
+    "subcategory": "Pharmacy",
+    "location": {
+      "neighborhood_id": "SA-RIY-YAS",
+      "latitude": 24.8011,
+      "longitude": 46.6399
+    },
+    "source": "Commercial Listing",
+    "last_verified": "2023-12-02"
+  },
+  {
+    "poi_id": "POI-YAS-SHO-01",
+    "name_ar": "مركز الياسمين التجاري",
+    "name_en": "Al Yasmin Shopping Center",
+    "category": "Shopping",
+    "subcategory": "Mall",
+    "location": {
+      "neighborhood_id": "SA-RIY-YAS",
+      "latitude": 24.7998,
+      "longitude": 46.6415
+    },
+    "source": "GASTAT",
+    "last_verified": "2024-02-28"
+  },
+  {
+    "poi_id": "POI-YAS-SHO-02",
+    "name_ar": "سوق الياسمين الشعبي",
+    "name_en": "Al Yasmin Souq",
+    "category": "Shopping",
+    "subcategory": "Souq",
+    "location": {
+      "neighborhood_id": "SA-RIY-YAS",
+      "latitude": 24.7923,
+      "longitude": 46.6247
+    },
+    "source": "Field Survey",
+    "last_verified": "2023-09-18"
+  },
+  {
+    "poi_id": "POI-YAS-SHO-03",
+    "name_ar": "سوبر ماركت الياسمين",
+    "name_en": "Al Yasmin Supermarket",
+    "category": "Shopping",
+    "subcategory": "Supermarket",
+    "location": {
+      "neighborhood_id": "SA-RIY-YAS",
+      "latitude": 24.8037,
+      "longitude": 46.6364
+    },
+    "source": "OpenStreetMap",
+    "last_verified": "2024-05-12"
+  },
+  {
+    "poi_id": "POI-YAS-REC-01",
+    "name_ar": "حديقة الياسمين العامة",
+    "name_en": "Al Yasmin Public Park",
+    "category": "Recreation",
+    "subcategory": "Park",
+    "location": {
+      "neighborhood_id": "SA-RIY-YAS",
+      "latitude": 24.8083,
+      "longitude": 46.631
+    },
+    "source": "MOMRAH",
+    "last_verified": "2023-07-30"
+  },
+  {
+    "poi_id": "POI-YAS-GOV-01",
+    "name_ar": "مركز خدمات البلدية بالياسمين",
+    "name_en": "Al Yasmin Municipality Service Center",
+    "category": "Government",
+    "subcategory": "Municipality Office",
+    "location": {
+      "neighborhood_id": "SA-RIY-YAS",
+      "latitude": 24.7976,
+      "longitude": 46.6427
+    },
+    "source": "Ministry Website",
+    "last_verified": "2024-03-15"
+  },
+  {
+    "poi_id": "POI-YAS-REL-01",
+    "name_ar": "مسجد الياسمين الكبير",
+    "name_en": "Al Yasmin Grand Mosque",
+    "category": "Religious",
+    "subcategory": "Mosque",
+    "location": {
+      "neighborhood_id": "SA-RIY-YAS",
+      "latitude": 24.794,
+      "longitude": 46.6295
+    },
+    "source": "Field Survey",
+    "last_verified": "2023-10-22"
+  },
+  {
+    "poi_id": "POI-YAS-SER-01",
+    "name_ar": "مصرف الياسمين",
+    "name_en": "Al Yasmin Bank",
+    "category": "Services",
+    "subcategory": "Bank",
+    "location": {
+      "neighborhood_id": "SA-RIY-YAS",
+      "latitude": 24.8005,
+      "longitude": 46.6383
+    },
+    "source": "Commercial Listing",
+    "last_verified": "2024-06-01"
+  },
+  {
+    "poi_id": "POI-YAS-SER-02",
+    "name_ar": "صراف الياسمين الآلي",
+    "name_en": "Al Yasmin ATM",
+    "category": "Services",
+    "subcategory": "ATM",
+    "location": {
+      "neighborhood_id": "SA-RIY-YAS",
+      "latitude": 24.8029,
+      "longitude": 46.6345
+    },
+    "source": "OpenStreetMap",
+    "last_verified": "2023-11-29"
+  },
+  {
+    "poi_id": "POI-YAS-TRN-01",
+    "name_ar": "محطة حافلات الياسمين",
+    "name_en": "Al Yasmin Bus Station",
+    "category": "Transportation",
+    "subcategory": "Bus Station",
+    "location": {
+      "neighborhood_id": "SA-RIY-YAS",
+      "latitude": 24.7932,
+      "longitude": 46.6459
+    },
+    "source": "MOMRAH",
+    "last_verified": "2024-04-25"
+  },
+  {
+    "poi_id": "POI-YAS-EDU-03",
+    "name_ar": "مدرسة الياسمين العالمية",
+    "name_en": "Al Yasmin International School",
+    "category": "Education",
+    "subcategory": "Private School",
+    "location": {
+      "neighborhood_id": "SA-RIY-YAS",
+      "latitude": 24.8041,
+      "longitude": 46.6298
+    },
+    "source": "GASTAT",
+    "last_verified": "2023-12-17"
+  }
+]

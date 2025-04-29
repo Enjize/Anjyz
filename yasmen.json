@@ -1,0 +1,48 @@
+{
+  "neighborhood_id": "SA-RIY-YAS",
+  "neighborhood_name_ar": "الياسمين",
+  "neighborhood_name_en": "Al Yasmin",
+  "city_ar": "الرياض",
+  "city_en": "Riyadh",
+  "province_ar": "منطقة الرياض",
+  "province_en": "Riyadh Province",
+  "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+      [
+        [46.63, 24.79],
+        [46.65, 24.80],
+        [46.64, 24.81],
+        [46.62, 24.80],
+        [46.63, 24.79]
+      ]
+    ]
+  },
+  "demographics": {
+    "data_as_of": "2024-12-31",
+    "total_population": 55200,
+    "population_density_km2": 4500,
+    "age_distribution": {
+      "0-17": 0.25,
+      "18-35": 0.40,
+      "36-55": 0.28,
+      "56+": 0.07
+    },
+    "household_avg_size": 4.5
+  },
+  "socio_economic": {
+    "data_as_of": "2024-12-31",
+    "estimated_avg_monthly_income_sar": 11500,
+    "estimated_spending_power_index": 1.15
+  },
+  "infrastructure": {
+    "schools_count": 15,
+    "hospitals_clinics_count": 8,
+    "parks_count": 5,
+    "major_roads": [
+      "King Salman Rd",
+      "Abu Bakr As Siddiq Branch Rd"
+    ]
+  },
+  "last_updated": "2025-04-28T14:30:00Z"
+}
