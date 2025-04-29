@@ -2,7 +2,7 @@
 import os
 import json
 import gradio as gr
-from gradio.components import Map   # ← أضف هذا السطر
+from gradio.components.map import Map
 from openai import OpenAI
 import folium
 # في بداية الملف app.py، السطر السابع تقريبًا (معدل)
