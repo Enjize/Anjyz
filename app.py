@@ -1,370 +1,437 @@
 # -*- coding: utf-8 -*-
-import os
-import json
 import gradio as gr
-from openai import OpenAI
 import folium
-# في بداية الملف app.py، السطر السابع تقريبًا (معدل)
-from folium.plugins import MarkerCluster # <--- قم بإزالة LatLngPopup من هنا
-
-from geopy.distance import geodesic
-
-from dotenv import load_dotenv
+from folium.plugins import MarkerCluster, HeatMap, LocateControl, Draw
+import json
 import os
+from openai import OpenAI
+from dotenv import load_dotenv
+from math import radians, sin, cos, sqrt, atan2
+import branca.element
 
-load_dotenv()  # يحمل متغيرات البيئة من ملف .env
-api_key = os.environ.get("OPENAI_API_KEY")
+# Load environment variables
+load_dotenv()
+openai_api_key = os.getenv("OPENAI_API_KEY")
+if not openai_api_key:
+    raise ValueError("OpenAI API key not found. Make sure it's set in the .env file.")
 
+client = OpenAI(api_key=openai_api_key)
 
-print("Gradio App: Importing libraries...")
+# --- Constants ---
+YASMEN_CENTER = [24.8087, 46.6419] # Center of Al Yasmin district
 
-# --- Configuration & Constants ---
-NEIGHBORHOOD_ID_TO_ANALYZE = "SA-RIY-YAS"
-# Approximate bounds (used for validation/context)
-LAT_MIN, LAT_MAX = 24.79, 24.81
-LON_MIN, LON_MAX = 46.62, 46.65
+# --- Helper Functions ---
 
-# File paths (assuming files are in the same directory as app.py)
-PROFILE_FILE = 'yasmen.json'
-LICENSES_FILE = 'fake_licenses_SA-RIY-YAS_openai.json'
-POIS_FILE = 'fake_pois_SA-RIY-YAS_openai.json'
+def haversine(lat1, lon1, lat2, lon2):
+    """Calculate the great-circle distance between two points on the earth."""
+    R = 6371.0  # Radius of the Earth in kilometers
+    lat1_rad, lon1_rad, lat2_rad, lon2_rad = map(radians, [lat1, lon1, lat2, lon2])
+    dlon = lon2_rad - lon1_rad
+    dlat = lat2_rad - lat1_rad
+    a = sin(dlat / 2)**2 + cos(lat1_rad) * cos(lat2_rad) * sin(dlon / 2)**2
+    c = 2 * atan2(sqrt(a), sqrt(1 - a))
+    distance = R * c
+    return distance * 1000 # return distance in meters
 
-# --- OpenAI Client Setup ---
-# IMPORTANT: Read API Key from Hugging Face Secrets
-api_key = os.environ.get("OPENAI_API_KEY")
-client = None
-if api_key:
+def load_data(filepath):
+    """Loads JSON data from a file."""
     try:
-        client = OpenAI(api_key=api_key)
-        print("Gradio App: OpenAI Client initialized successfully.")
-        # Optional: Test connection
-        # client.models.list() 
-    except Exception as e:
-        print(f"Gradio App Error: Failed to initialize OpenAI client - {e}")
-else:
-    print("Gradio App Warning: OPENAI_API_KEY secret not found!")
-    # Handle cases where the key might not be set during build/testing if necessary
-
-# --- Data Loading ---
-def load_json_data(filename):
-    """Loads data from a JSON file."""
-    try:
-        # Ensure the path is relative to the script location
-        script_dir = os.path.dirname(__file__)
-        file_path = os.path.join(script_dir, filename)
-        with open(file_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-        print(f"Gradio App: Data loaded successfully from {filename}")
-        return data
+        with open(filepath, 'r', encoding='utf-8') as f:
+            return json.load(f)
     except FileNotFoundError:
-        print(f"Gradio App Error: File not found {filename}")
+        print(f"Error: File not found at {filepath}")
         return None
     except json.JSONDecodeError:
-        print(f"Gradio App Error: Invalid JSON format in {filename}")
-        return None
-    except Exception as e:
-        print(f"Gradio App Error: Unexpected error loading {filename}: {e}")
+        print(f"Error: Could not decode JSON from {filepath}")
         return None
 
-print("Gradio App: Loading data files...")
-neighborhood_profile = load_json_data(PROFILE_FILE)
-licenses_data = load_json_data(LICENSES_FILE)
-pois_data = load_json_data(POIS_FILE)
-data_loaded_successfully = all([neighborhood_profile, licenses_data, pois_data])
-
-if not data_loaded_successfully:
-     print("Gradio App Error: Failed to load one or more essential data files. The app might not function correctly.")
-     # Set data to empty structures to avoid crashing later functions
-     neighborhood_profile = neighborhood_profile or {}
-     licenses_data = licenses_data or []
-     pois_data = pois_data or []
-
-# --- Prepare Activity List for Dropdown ---
-available_activities_list = []
-if isinstance(licenses_data, list):
-    seen_descs = set()
-    for lic in licenses_data:
-        desc = lic.get('activity_description_ar')
-        if desc and desc not in seen_descs:
-            available_activities_list.append(desc)
-            seen_descs.add(desc)
-available_activities_list.sort()
-print(f"Gradio App: Found {len(available_activities_list)} unique activities.")
-
-# --- Helper Functions (Context Prep, LLM Call, Map Creation) ---
-
-def prepare_enhanced_context_for_llm(profile, licenses, pois, selected_activity, prop_lat, prop_lon):
-    """Prepares a more detailed context including location analysis for the LLM."""
-    # ...(Implementation from previous responses - ensure it uses the loaded data)...
-    if not all([profile, licenses, pois, selected_activity, prop_lat, prop_lon]):
-        print("Context Prep Error: Missing input data.")
-        return None, None, [] # Return structure expected by main function
-
-    neighborhood_name = profile.get('neighborhood_name_ar', 'غير متوفر')
-    population = profile.get('demographics', {}).get('total_population', 'غير متوفر')
-    age_dist = profile.get('demographics', {}).get('age_distribution', {})
-    youth_ratio_18_35 = age_dist.get('18-35', 0.0) 
-    income = profile.get('socio_economic', {}).get('estimated_avg_monthly_income_sar', 'غير متوفر')
-    proposed_location = (prop_lat, prop_lon)
-
+def find_competitors(licenses_data, activity_type, target_lat, target_lon, radius_km=1.0):
+    """Find competitors within a given radius."""
     competitors = []
-    for lic in licenses:
-        if lic.get('location', {}).get('neighborhood_id') == NEIGHBORHOOD_ID_TO_ANALYZE:
-            if lic.get('activity_description_ar') == selected_activity:
-                 loc = lic.get('location', {})
-                 comp_lat = loc.get('latitude')
-                 comp_lon = loc.get('longitude')
-                 if comp_lat and comp_lon:
-                     try:
-                        distance = geodesic(proposed_location, (comp_lat, comp_lon)).km
-                     except Exception as e:
-                         distance = None 
-                     competitors.append({
-                         "name": lic.get('business_name_ar', 'غير معروف'),
-                         "lat": comp_lat, "lon": comp_lon,
-                         "distance_km": round(distance, 2) if distance is not None else None })
+    if not licenses_data or 'features' not in licenses_data:
+        return competitors
 
-    competitor_count = len(competitors)
-    competitors.sort(key=lambda x: x.get('distance_km') if x.get('distance_km') is not None else float('inf'))    
-    nearest_competitor_info = "لا يوجد منافسون بنفس النشاط."
-    if competitors and competitors[0].get('distance_km') is not None:
-         nearest_competitor_info = f"أقرب منافس يبعد حوالي {competitors[0]['distance_km']:.2f} كم."
+    for feature in licenses_data['features']:
+        properties = feature.get('properties', {})
+        geometry = feature.get('geometry', {})
+        if not properties or not geometry or geometry.get('type') != 'Point':
+            continue
 
-    poi_summary_by_category = {}
-    important_poi_categories = ['Education', 'Healthcare', 'Shopping', 'Recreation', 'Religious', 'Services'] 
-    nearby_important_pois = []
-    MAX_NEARBY_DISTANCE_KM = 1.0 
+        # Normalize activity description for comparison (simple example)
+        license_activity = properties.get('ACTIVITIE_DESCRIPTION', '').strip()
+        # Consider adjusting matching logic if needed (e.g., partial match, category match)
+        if activity_type.strip().lower() in license_activity.lower():
+            coords = geometry.get('coordinates')
+            if coords and len(coords) == 2:
+                comp_lon, comp_lat = coords
+                distance = haversine(target_lat, target_lon, comp_lat, comp_lon)
+                if distance <= radius_km * 1000:
+                    competitors.append({
+                        'name': properties.get('CLIENT_NAME', 'N/A'),
+                        'activity': license_activity,
+                        'latitude': comp_lat,
+                        'longitude': comp_lon,
+                        'distance_m': round(distance)
+                    })
+    return sorted(competitors, key=lambda x: x['distance_m'])
 
-    if pois:
-        for poi in pois:
-            category = poi.get('category', 'Unknown')
-            poi_summary_by_category[category] = poi_summary_by_category.get(category, 0) + 1
-            if category in important_poi_categories:
-                 loc = poi.get('location', {})
-                 poi_lat = loc.get('latitude')
-                 poi_lon = loc.get('longitude')
-                 if poi_lat and poi_lon:
-                     try:
-                         distance = geodesic(proposed_location, (poi_lat, poi_lon)).km
-                         if distance <= MAX_NEARBY_DISTANCE_KM:
-                             nearby_important_pois.append({ "name": poi.get('name_ar', 'غير معروف'), "category": category, "distance_km": round(distance, 2) })
-                     except: pass 
-    nearby_important_pois.sort(key=lambda x: x['distance_km'])
-    poi_context_str = "ملخص نقاط الاهتمام بالحي: " + ", ".join([f"{cat}: {count}" for cat, count in poi_summary_by_category.items()])
-    nearby_poi_str = f"نقاط اهتمام هامة قريبة (ضمن {MAX_NEARBY_DISTANCE_KM} كم): "
-    if nearby_important_pois: nearby_poi_str += ", ".join([f"{p['name']} ({p['category']}) - {p['distance_km']:.2f} كم" for p in nearby_important_pois[:5]])
-    else: nearby_poi_str += "لا يوجد ضمن المسافة المحددة."
+def find_nearby_pois(pois_data, target_lat, target_lon, radius_km=0.5):
+    """Find Points of Interest (POIs) within a given radius."""
+    nearby_pois = []
+    if not pois_data or 'features' not in pois_data:
+        return nearby_pois
 
-    context = f"""
-ملخص بيانات لتحليل فرصة استثمارية في حي {neighborhood_name} بمدينة الرياض:
-- النشاط المطلوب: {selected_activity}
-- الموقع المقترح: خط عرض {prop_lat}, خط طول {prop_lon}
-- بيانات الحي:
-    - عدد السكان التقديري: {population} نسمة
-    - نسبة الشباب (18-35 سنة) التقديرية: {youth_ratio_18_35:.1%} ({youth_ratio_18_35*100:.1f}%)
-    - متوسط الدخل الشهري التقديري: {income} ريال سعودي
-- تحليل المنافسة والموقع:
-    - عدد المشاريع القائمة بنفس النشاط في الحي: {competitor_count}
-    - {nearest_competitor_info}
-    - مواقع أول 5 منافسين (إن وجدوا): {json.dumps([{'lat': c['lat'], 'lon': c['lon'], 'dist_km': c['distance_km']} for c in competitors[:5]], ensure_ascii=False)}
-- نقاط الاهتمام والسياق المحيط:
-    - {poi_context_str}
-    - {nearby_poi_str}
-"""
-    print("Gradio App: Context prepared for LLM.")
-    return context, proposed_location, competitors
+    for feature in pois_data['features']:
+        properties = feature.get('properties', {})
+        geometry = feature.get('geometry', {})
+        if not properties or not geometry or geometry.get('type') != 'Point':
+            continue
+
+        poi_type = properties.get('fclass', 'unknown')
+        poi_name = properties.get('name', 'N/A')
+        coords = geometry.get('coordinates')
+
+        if coords and len(coords) == 2:
+            poi_lon, poi_lat = coords
+            distance = haversine(target_lat, target_lon, poi_lat, poi_lon)
+            if distance <= radius_km * 1000:
+                nearby_pois.append({
+                    'name': poi_name,
+                    'type': poi_type,
+                    'latitude': poi_lat,
+                    'longitude': poi_lon,
+                    'distance_m': round(distance)
+                })
+    return sorted(nearby_pois, key=lambda x: x['distance_m'])
 
 
-def get_athar_analysis_enhanced(llm_client, context_summary):
-    """Sends ENHANCED context to the LLM and gets analysis."""
-    # ...(Implementation from previous responses)...
-    if not llm_client: return "خطأ: OpenAI Client غير مهيأ."
-    if not context_summary: return "خطأ: سياق البيانات فارغ."
+def prepare_enhanced_context_for_llm(district_info, activity_type, target_lat, target_lon, competitors, nearby_pois):
+    """Prepares a detailed context string for the LLM."""
+    context = f"**Investment Analysis Context:**\n\n"
+    context += f"*   **Target Location:** Al Yasmin District, Riyadh (Lat: {target_lat}, Lon: {target_lon})\n"
+    context += f"*   **Proposed Business Activity:** {activity_type}\n\n"
 
-    analysis_prompt = f"""
-أنت مساعد ذكي في مشروع "أثر" لتحليل فرص الاستثمار التجاري في السعودية.
-مهمتك هي تحليل البيانات المقدمة عن حي معين، نشاط تجاري مطلوب، والموقع المقترح لهذا النشاط، ثم تقديم توصية مفصلة حول مدى مناسبة فتح هذا النشاط في الموقع المقترح ضمن هذا الحي.
+    if district_info:
+        context += "**District Information (Al Yasmin):**\n"
+        context += f"*   Population: {district_info.get('population', 'N/A')}\n"
+        context += f"*   Households: {district_info.get('households', 'N/A')}\n"
+        context += f"*   Avg. Household Income: {district_info.get('avg_household_income', 'N/A')} SAR\n"
+        context += f"*   Key Demographics: {district_info.get('demographics_summary', 'N/A')}\n"
+        context += f"*   Economic Profile: {district_info.get('economic_profile', 'N/A')}\n\n"
 
-البيانات المقدمة للتحليل:
-{context_summary}
+    context += f"**Competitive Landscape (within 1km of target location for '{activity_type}'):**\n"
+    if competitors:
+        context += f"*   Number of direct competitors found: {len(competitors)}\n"
+        for i, c in enumerate(competitors[:5]): # Show top 5 closest
+             context += f"    - Competitor {i+1}: ~{c['distance_m']}m away\n" # Removed name for privacy if needed
+        if len(competitors) > 5:
+            context += "    - ... and others.\n"
+    else:
+        context += "*   No direct competitors found within 1km.\n"
+    context += "\n"
 
-المطلوب:
-قدم تحليلاً وتوصية واضحة، مع الأخذ في الاعتبار العوامل التالية:
-1.  **حجم السوق المحتمل:** بناءً على بيانات السكان والدخل ونسبة الشباب.
-2.  **مستوى المنافسة:** بناءً على عدد المنافسين الحاليين بنفس النشاط.
-3.  **تحليل الموقع:** بناءً على الموقع المقترح، ومدى قربه من المنافسين (استخدم بيانات المسافة ومواقع المنافسين)، ومدى قربه من نقاط الاهتمام الهامة (مثل المدارس، الأسواق، الحدائق) التي قد تخدم النشاط أو تجذب العملاء.
-4.  **ملخص نقاط الاهتمام:** لتقييم مدى حيوية المنطقة وتوفر الخدمات الأساسية.
+    context += f"**Nearby Points of Interest (within 500m):**\n"
+    if nearby_pois:
+        poi_summary = {}
+        for poi in nearby_pois:
+            poi_type = poi['type']
+            poi_summary[poi_type] = poi_summary.get(poi_type, 0) + 1
 
-يجب أن تكون التوصية النهائية إحدى هذه الخيارات الرئيسية مع تعليل واضح يربط بين البيانات والموقع:
-1.  **فرصة واعدة في الموقع المقترح:** (منافسة قليلة/بعيدة، سوق جيد، موقع قريب من نقاط جذب/مناطق سكنية ذات صلة).
-2.  **ممكن مع الأخذ بالاعتبار (اذكر الاعتبارات):** (منافسة متوسطة، قد يكون الموقع قريبًا جدًا من منافس، أو بعيدًا عن نقاط الجذب، يحتاج لدراسة أعمق للسوق المستهدف في هذا الموقع المحدد).
-3.  **الموقع قد يكون غير مثالي / المنطقة مشبعة:** (منافسة عالية وقريبة، الموقع غير ملائم للنشاط، بعيد عن الخدمات).
+        context += f"*   Total POIs found: {len(nearby_pois)}\n"
+        for poi_type, count in poi_summary.items():
+             context += f"    - {poi_type.replace('_', ' ').title()}: {count}\n"
+        # Example: Add distance to the closest school or mosque if relevant
+        closest_school = min([p for p in nearby_pois if 'school' in p['type']], key=lambda x: x['distance_m'], default=None)
+        if closest_school:
+             context += f"*   Closest School: {closest_school['name']} (~{closest_school['distance_m']}m away)\n"
+        closest_mosque = min([p for p in nearby_pois if 'mosque' in p['type']], key=lambda x: x['distance_m'], default=None)
+        if closest_mosque:
+             context += f"*   Closest Mosque: {closest_mosque['name']} (~{closest_mosque['distance_m']}m away)\n"
 
-اجعل الرد باللغة العربية وبأسلوب احترافي ومفصل بشكل معقول (ضمن 150-200 كلمة).
-"""
+    else:
+        context += "*   No significant points of interest found within 500m.\n"
+    context += "\n"
+
+    context += "**Analysis Request:**\n"
+    context += f"Based on the provided district information, the proposed business activity ('{activity_type}'), the specific target location, the competitive landscape, and nearby POIs, please provide a concise analysis of the investment opportunity. Focus on:\n"
+    context += f"1.  **Market Suitability:** Is '{activity_type}' suitable for this specific location within Al Yasmin, considering demographics and nearby POIs?\n"
+    context += f"2.  **Competition:** How significant is the existing competition?\n"
+    context += f"3.  **Potential:** What is the overall potential or risk level?\n"
+    context += f"4.  **Recommendation:** Provide a brief recommendation (e.g., Proceed with caution, Good potential, High risk).\n"
+    context += "Keep the analysis brief and focused on the provided data points."
+
+    return context
+
+def get_athar_analysis_enhanced(context):
+    """Sends the context to OpenAI API for analysis."""
     try:
-        print("Gradio App: Sending request to LLM...")
-        completion = llm_client.chat.completions.create(
-            model="gpt-4o", 
+        response = client.chat.completions.create(
+            model="gpt-4o", # Or your preferred model
             messages=[
-                {"role": "system", "content": "أنت مساعد تحليل استثماري متخصص في السوق السعودي مع التركيز على تحليل المواقع. قدم تحليلًا وتوصية بناءً على البيانات التفصيلية المعطاة."},
-                {"role": "user", "content": analysis_prompt}
+                {"role": "system", "content": "You are an AI assistant specialized in analyzing commercial investment opportunities based on provided location data, demographics, competitor analysis, and points of interest. Provide concise, data-driven insights."},
+                {"role": "user", "content": context}
             ],
-            temperature=0.6, 
-            max_tokens=350 
+            max_tokens=400, # Adjust as needed
+            temperature=0.5 # Adjust for creativity vs. factuality
         )
-        analysis_result = completion.choices[0].message.content
-        print("Gradio App: Received response from LLM.")
-        return analysis_result
+        # Accessing the response content correctly
+        return response.choices[0].message.content.strip()
     except Exception as e:
-        print(f"Gradio App Error: LLM API call failed - {e}")
-        return f"عذرًا، حدث خطأ أثناء محاولة تحليل البيانات ({e})."
+        print(f"Error calling OpenAI API: {e}")
+        return f"Error: Could not get analysis from AI. Details: {e}"
+
+# --- Map Creation ---
+# ...existing code...
+def create_integrated_output_map(target_lat, target_lon, activity_type, licenses_data, pois_data):
+    """Creates a Folium map showing target, competitors, and POIs."""
+    if target_lat is None or target_lon is None:
+         # Return an initial map centered on Yasmin if no coords selected
+         map_obj = folium.Map(location=YASMEN_CENTER, zoom_start=14, tiles='CartoDB positron')
+         # Add JavaScript to update Gradio fields on click
+         map_obj.add_child(folium.LatLngPopup()) # Shows coords on click
+
+         # Custom JS to update Gradio input fields
+         # Note: This relies on the specific structure/IDs Gradio generates, which might change.
+         # We target the number inputs by their placeholder text as a workaround.
+         js = """
+            <script>
+            function updateGradioCoords(lat, lon) {
+                console.log("Map clicked at:", lat, lon);
+                // Find the Gradio number input elements. This is fragile.
+                // It assumes the Gradio interface structure won't change drastically.
+                // We look for the specific number inputs used for lat/lon.
+                var latInput = document.querySelector("input[type='number'][step='any'][placeholder='Latitude']"); // Adjust selector if needed
+                var lonInput = document.querySelector("input[type='number'][step='any'][placeholder='Longitude']"); // Adjust selector if needed
+
+                if (latInput && lonInput) {
+                    console.log("Found input fields:", latInput, lonInput);
+                    latInput.value = lat.toFixed(6);
+                    lonInput.value = lon.toFixed(6);
+
+                    // Trigger input/change events to notify Gradio of the update
+                    // Need both 'input' and 'change' for Gradio to reliably pick it up.
+                    var inputEvent = new Event('input', { bubbles: true });
+                    var changeEvent = new Event('change', { bubbles: true });
+                    latInput.dispatchEvent(inputEvent);
+                    latInput.dispatchEvent(changeEvent);
+                    lonInput.dispatchEvent(inputEvent);
+                    lonInput.dispatchEvent(changeEvent);
+                    console.log("Updated Gradio fields");
+
+                    // Optional: Add a temporary marker (will be replaced on analysis)
+                    // This requires Leaflet (L) to be available, which Folium uses.
+                    // if (typeof L !== 'undefined' && typeof map !== 'undefined') {
+                    //     L.marker([lat, lon]).addTo(map).bindPopup('Selected Location').openPopup();
+                    // }
+
+                } else {
+                    console.error("Could not find Gradio latitude/longitude input fields.");
+                }
+            }
+
+            // Add click listener to the map
+            // Ensure this runs *after* the map object ('map_div_id') is created by Folium/Gradio
+            // We might need to wrap this in a function called by Folium's rendering process
+            // or use a MutationObserver. For simplicity, let's try adding it directly.
+
+            // Assuming the map object created by Folium is named 'map_...'
+            // We need to find the correct map object in the global scope or attach the event differently.
+            // Folium map objects are often named like 'map_a1b2c3d4...'
+            // A more robust way is to attach the event within the Folium map generation if possible.
+
+            // Let's try adding the listener directly to the map div Folium creates.
+            // We need the ID of the div where Folium renders the map.
+            // Let's assume Gradio renders the HTML output in a div, and Folium map is inside.
+            // We'll use a general approach targeting the map container.
+
+            document.addEventListener('DOMContentLoaded', function() {
+                // Find the map container (might need adjustment based on Gradio's output structure)
+                var mapElement = document.querySelector('.folium-map'); // Adjust if Folium uses a different class
+                if (mapElement && mapElement.__folium_map) { // Check if Folium attached the map object
+                     mapElement.__folium_map.on('click', function(e) {
+                         updateGradioCoords(e.latlng.lat, e.latlng.lng);
+                     });
+                     console.log("Map click listener attached.");
+                } else {
+                     // Fallback or alternative method if the above doesn't work
+                     console.warn("Could not attach click listener directly to Folium map object. Trying LatLngPopup approach.");
+                     // The folium.LatLngPopup() added earlier might be sufficient if it triggers updates,
+                     // but we want to update specific fields.
+                     // Let's rely on the custom JS within the map's HTML source.
+                }
+            });
 
 
-def create_integrated_output_map(profile, pois, competitors_list, proposed_loc, selected_activity):
-    """Creates the final map showing proposed location, competitors, and POIs."""
-    # ...(Implementation from previous responses - ensure it uses loaded data)...
-    if not profile or not proposed_loc: return None        
-    center_lat, center_lon = proposed_loc[0], proposed_loc[1]
-    zoom_start = 15 
+            </script>
+            """
+         # Embed the JavaScript into the map's HTML
+         # This is a bit hacky, injecting script into the rendered HTML
+         map_html = map_obj.get_root().render()
+         map_html_with_js = map_html.replace('</head>', f'{js}</head>') # Inject JS into head
+         # Instead of returning map_obj._repr_html_(), return the modified HTML string
+         # We need Gradio to render this HTML. Use gr.HTML output.
+         # The function will now return HTML string instead of map object representation.
+         # This requires changing the Gradio output component for the map to gr.HTML.
 
-    output_map = folium.Map(location=[center_lat, center_lon], zoom_start=zoom_start, tiles='CartoDB positron')
+         # Add a simple popup instruction
+         folium.Marker(
+             YASMEN_CENTER,
+             popup="Click on the map to select your location",
+             tooltip="Click to select location",
+             icon=folium.Icon(color='blue', icon='info-sign')
+         ).add_to(map_obj)
 
-    # Add Proposed Location Marker
+         # Return the HTML representation for Gradio's HTML component
+         return map_obj._repr_html_() # Still return HTML for gr.Plot or gr.HTML
+
+
+    # --- Existing map generation logic when lat/lon ARE provided ---
+    map_obj = folium.Map(location=[target_lat, target_lon], zoom_start=16, tiles='CartoDB positron')
+
+    # Add marker for the target location
     folium.Marker(
-        location=proposed_loc,
-        popup=f"<b>الموقع المقترح</b><br>للنشاط: {selected_activity}",
-        tooltip="الموقع المقترح",
-        icon=folium.Icon(color='green', icon='star', prefix='fa')
-    ).add_to(output_map)
+        [target_lat, target_lon],
+        popup=f"Proposed Location\nActivity: {activity_type}",
+        tooltip="Proposed Location",
+        icon=folium.Icon(color='green', icon='star')
+    ).add_to(map_obj)
 
-    # Add Competitors
-    if competitors_list:
-        comp_cluster = MarkerCluster(name=f"منافسون ({selected_activity})").add_to(output_map)
-        for comp in competitors_list:
-             dist_text = f"{comp['distance_km']:.2f} كم" if comp.get('distance_km') is not None else "N/A"
-             popup_html = f"<b>{comp['name']}</b><br><i>منافس</i><br>المسافة: {dist_text}"
-             folium.Marker( location=[comp['lat'], comp['lon']], popup=folium.Popup(popup_html, max_width=250),
-                 tooltip=f"{comp['name']} (منافس)", icon=folium.Icon(color='red', icon='briefcase', prefix='fa')
-             ).add_to(comp_cluster)
+    # Add competitors to the map
+    competitor_group = folium.FeatureGroup(name=f"Competitors ({activity_type})")
+    competitors = find_competitors(licenses_data, activity_type, target_lat, target_lon)
+    for comp in competitors:
+        folium.Marker(
+            [comp['latitude'], comp['longitude']],
+            popup=f"Competitor: {comp.get('name', 'N/A')}\nActivity: {comp['activity']}\nDistance: {comp['distance_m']}m",
+            tooltip=f"Competitor (~{comp['distance_m']}m)",
+            icon=folium.Icon(color='red', icon='briefcase')
+        ).add_to(competitor_group)
+    map_obj.add_child(competitor_group)
 
-    # Add POIs
-    if pois:
-        poi_cluster = MarkerCluster(name="نقاط الاهتمام").add_to(output_map)
-        for poi in pois:
-           try:
-                loc = poi.get('location', {})
-                lat = loc.get('latitude')
-                lon = loc.get('longitude')
-                if lat is not None and lon is not None:
-                        name = poi.get('name_ar', 'غير معروف')
-                        category = poi.get('category', 'غير معروف')
-                        subcategory = poi.get('subcategory', '')
-                        icon_name = 'info-circle'; icon_color = 'blue'      
-                        if category.lower() == 'education': icon_name = 'graduation-cap'; icon_color = 'darkblue'
-                        elif category.lower() == 'healthcare': icon_name = 'hospital-o'; icon_color = 'red'
-                        elif category.lower() == 'shopping': icon_name = 'shopping-cart'; icon_color = 'purple'
-                        elif category.lower() == 'recreation': icon_name = 'tree'; icon_color = 'green'
-                        elif category.lower() == 'religious': icon_name = 'moon-o'; icon_color = 'darkgreen'
-                        elif category.lower() == 'services': icon_name = 'bank'; icon_color = 'cadetblue'
-                        popup_html = f"<b>{name}</b><br>الفئة: {category} ({subcategory})"
-                        folium.Marker( location=[lat, lon], popup=folium.Popup(popup_html, max_width=300),
-                            tooltip=name, icon=folium.Icon(color=icon_color, icon=icon_name, prefix='fa', icon_size=(20,20))
-                        ).add_to(poi_cluster) 
-           except Exception as e: print(f"Map Error adding POI {poi.get('poi_id', '')}: {e}") 
-        
-    folium.LayerControl().add_to(output_map)
-    print("Gradio App: Output map created.")
-    return output_map
+    # Add POIs to the map
+    poi_group = folium.FeatureGroup(name="Nearby POIs (500m)")
+    nearby_pois = find_nearby_pois(pois_data, target_lat, target_lon)
+    poi_icon_map = {
+        'school': 'graduation-cap', 'hospital': 'hospital-o', 'clinic': 'medkit',
+        'pharmacy': 'plus-square', 'bank': 'bank', 'atm': 'credit-card',
+        'supermarket': 'shopping-cart', 'convenience': 'shopping-basket',
+        'restaurant': 'cutlery', 'cafe': 'coffee', 'fast_food': 'car', # Using 'car' as placeholder
+        'fuel': 'tint', 'car_wash': 'car', 'car_repair': 'wrench',
+        'mosque': 'moon-o', # Using FontAwesome icons
+        'police': 'shield', 'fire_station': 'fire-extinguisher',
+        'hotel': 'bed', 'park': 'tree',
+        # Add more mappings as needed
+    }
+    for poi in nearby_pois:
+        icon_name = poi_icon_map.get(poi['type'], 'info-sign') # Default icon
+        folium.Marker(
+            [poi['latitude'], poi['longitude']],
+            popup=f"POI: {poi['name']}\nType: {poi['type']}\nDistance: {poi['distance_m']}m",
+            tooltip=f"{poi['type'].title()} (~{poi['distance_m']}m)",
+            icon=folium.Icon(color='blue', icon=icon_name, prefix='fa' if icon_name != 'info-sign' else 'glyphicon') # Use FontAwesome prefix for specific icons
+        ).add_to(poi_group)
+    map_obj.add_child(poi_group)
+
+    # Add layer control
+    folium.LayerControl().add_to(map_obj)
+    # Add locate control
+    LocateControl().add_to(map_obj)
+
+    # Add Draw plugin (optional, for user drawing)
+    # Draw(export=True).add_to(map_obj)
+
+    # Return HTML representation of the map
+    return map_obj._repr_html_()
 
 
-# --- Gradio Main Function ---
-def run_athar_analysis_gradio(selected_activity, proposed_lat, proposed_lon):
-    """Main function called by Gradio interface."""
-    print(f"Gradio App: Received request - Activity: {selected_activity}, Lat: {proposed_lat}, Lon: {proposed_lon}")
-    # Basic Input Validation
-    if not selected_activity:
-        return "الرجاء اختيار نشاط تجاري أولاً.", None
-    if proposed_lat is None or proposed_lon is None:
-        return "الرجاء إدخال خط العرض وخط الطول للموقع المقترح.", None
-    # Validate coordinates are within reasonable bounds for Riyadh (optional but good)
-    if not (24.0 < proposed_lat < 25.5 and 46.0 < proposed_lon < 47.5):
-         return "إحداثيات الموقع المقترح تبدو غير صحيحة (خارج نطاق الرياض).", None
-    # Check if data loaded
-    if not data_loaded_successfully:
-        return "خطأ: فشل تحميل ملفات البيانات الأساسية.", None
-    # Check if API client is ready
-    if not client:
-        return "خطأ: لم يتم إعداد مفتاح OpenAI API بشكل صحيح.", None
+# --- Main Analysis Function ---
+def analyze_investment(activity_type, latitude, longitude):
+    """Loads data, prepares context, gets analysis, and creates map."""
+    # Validate inputs
+    if not activity_type:
+        return "Please select a business activity.", create_integrated_output_map(None, None, None, None, None) # Return initial map
+    if latitude is None or longitude is None:
+        # If called without coordinates (e.g., initial load or after invalid click)
+        # Return only the initial map with click instructions
+        return "Please click on the map to select a location.", create_integrated_output_map(None, None, None, None, None)
+    if not (-90 <= latitude <= 90 and -180 <= longitude <= 180):
+         return "Invalid latitude or longitude values.", create_integrated_output_map(YASMEN_CENTER[0], YASMEN_CENTER[1], activity_type, None, None) # Show map centered
 
-    # 1. Prepare Context
-    context, proposed_location_tuple, competitors_list = prepare_enhanced_context_for_llm(
-        neighborhood_profile, licenses_data, pois_data, 
-        selected_activity, proposed_lat, proposed_lon
+    # Load data (consider caching if large)
+    district_data = load_data('yasmen.json')
+    licenses_data = load_data('fake_licenses_SA-RIY-YAS_openai.json')
+    pois_data = load_data('fake_pois_SA-RIY-YAS_openai.json')
+
+    if not district_data or not licenses_data or not pois_data:
+        return "Error: Could not load necessary data files.", create_integrated_output_map(latitude, longitude, activity_type, None, None) # Show map at location
+
+    # Find competitors and POIs
+    competitors = find_competitors(licenses_data, activity_type, latitude, longitude)
+    nearby_pois = find_nearby_pois(pois_data, latitude, longitude)
+
+    # Prepare context for LLM
+    context = prepare_enhanced_context_for_llm(
+        district_data.get('Al Yasmin'), # Assuming district name is key
+        activity_type,
+        latitude,
+        longitude,
+        competitors,
+        nearby_pois
     )
-    
-    # 2. Get LLM Analysis
-    analysis_text = "فشل في الحصول على التحليل." # Default message
-    if context:
-        analysis_text = get_athar_analysis_enhanced(client, context)
-        
-    # 3. Create Output Map
-    output_map = None
-    if proposed_location_tuple:
-        output_map = create_integrated_output_map(
-             neighborhood_profile, pois_data, competitors_list, 
-             proposed_location_tuple, selected_activity
-        )
 
-    print("Gradio App: Analysis and map generation complete.")
-    # Gradio's gr.Plot can handle folium map objects directly
-    return analysis_text, output_map 
+    # Get analysis from LLM
+    analysis_text = get_athar_analysis_enhanced(context)
 
-# --- Gradio Interface Definition ---
-print("Gradio App: Defining Gradio interface...")
-with gr.Blocks(theme=gr.themes.Soft(), title="Athar Investment Analyzer") as iface:
-    gr.Markdown("# مشروع أثر - تحليل فرص الاستثمار التجاري")
-    gr.Markdown("أداة تجريبية لتحليل مدى مناسبة فتح نشاط تجاري في **حي الياسمين بالرياض** بناءً على بيانات وهمية. أدخل النشاط والموقع المقترح للحصول على تحليل.")
-    
+    # Create the map with results
+    output_map_html = create_integrated_output_map(latitude, longitude, activity_type, licenses_data, pois_data)
+
+    return analysis_text, output_map_html
+
+# --- Gradio Interface ---
+# Define activity choices (example list, expand as needed)
+activity_choices = [
+    "Supermarket", "Convenience Store", "Restaurant", "Cafe", "Pharmacy",
+    "Bakery", "Laundry", "Barber Shop", "Beauty Salon", "Gym", "Bookstore",
+    "Electronics Store", "Clothing Store", "Shoe Store", "Hardware Store",
+    "Flower Shop", "Pet Store", "Clinic", "Car Wash", "Coffee Shop"
+]
+
+# Use gr.HTML for map output to render the Folium HTML including JavaScript
+# Make lat/lon inputs non-interactive initially, they will be updated by map click
+with gr.Blocks(theme=gr.themes.Soft(), title="Athar - Investment Analysis") as demo:
+    gr.Markdown("# Athar - Investment Opportunity Analysis (Al Yasmin, Riyadh)")
+    gr.Markdown("Select a business activity and **click on the map** to choose your proposed location.")
+
     with gr.Row():
-        with gr.Column(scale=1):
-            activity_input = gr.Dropdown(
-                choices=available_activities_list, 
-                label="1. اختر النشاط التجاري",
-                info="اختر من قائمة الأنشطة المتوفرة في بيانات الحي."
-            )
-            lat_input = gr.Number(
-                label="2. أدخل خط العرض المقترح (Latitude)",
-                info="مثال: 24.801234"
-            )
-            lon_input = gr.Number(
-                label="3. أدخل خط الطول المقترح (Longitude)",
-                info="مثال: 46.634567"
-            )
-            submit_button = gr.Button("🚀 تحليل الفرصة", variant="primary")
-            
-        with gr.Column(scale=2):
-            analysis_output = gr.Textbox(
-                label="تحليل وتوصية أثر:", 
-                lines=12,
-                interactive=False # Make output non-editable
-            )
-            map_output = gr.Plot(label="الخريطة التفاعلية للنتائج")
+        activity = gr.Dropdown(choices=activity_choices, label="Business Activity Type")
+        # Make Lat/Lon inputs visible but not directly editable by user initially
+        # They will display the coordinates selected from the map.
+        lat_input = gr.Number(label="Latitude", placeholder="Latitude", info="Click map to set", interactive=False)
+        lon_input = gr.Number(label="Longitude", placeholder="Longitude", info="Click map to set", interactive=False)
 
-    # --- Linking inputs/outputs to the function ---
-    submit_button.click(
-        fn=run_athar_analysis_gradio,
-        inputs=[activity_input, lat_input, lon_input],
+    analyze_button = gr.Button("Analyze Investment Opportunity")
+
+    with gr.Row():
+        analysis_output = gr.Markdown(label="Analysis Results")
+        # Use gr.HTML to render the Folium map HTML, including our custom JS
+        map_output = gr.HTML(label="Interactive Map")
+
+    # Define the interaction: Button click triggers analysis
+    analyze_button.click(
+        fn=analyze_investment,
+        inputs=[activity, lat_input, lon_input],
         outputs=[analysis_output, map_output]
     )
-    
-    gr.Markdown("--- \n *ملاحظة: هذه الأداة تستخدم بيانات وهمية لأغراض العرض التوضيحي.*")
 
-print("Gradio App: Interface defined.")
+    # Load initial map on interface load
+    # We need a way to trigger the map creation initially.
+    # We can call analyze_investment with None values to get the initial map.
+    demo.load(
+        fn=lambda: ( "Please select an activity and click the map.", create_integrated_output_map(None, None, None, None, None) ),
+        inputs=None,
+        outputs=[analysis_output, map_output]
+    )
 
-# --- Launch the Gradio App ---
+
 if __name__ == "__main__":
-    print("Gradio App: Launching interface...")
-    # queue() enables handling multiple users if deployed
-    # share=True creates a temporary public link (useful for testing from VS Code tunnel?)
-    iface.queue().launch(debug=False) # Set debug=True for more detailed logs if needed
+    demo.launch()
