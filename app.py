@@ -328,12 +328,8 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Athar Investment Analyzer") as ifa
     
     with gr.Row():
         with gr.Column(scale=1):
-            activity_input = gr.Dropdown(
-                choices=available_activities_list,
-                label="1. اختر النشاط التجاري",
-                info="اختر من قائمة الأنشطة المتوفرة في بيانات الحي."
-            )
-            map_input = Map(
+            activity_input = gr.Dropdown(choices=available_activities_list, label="1. اختر النشاط التجاري")
+            map_input = gr.Map(
                 interactive=True,
                 label="2. اختر موقع النشاط على الخريطة",
                 value={'lat': (LAT_MIN+LAT_MAX)/2, 'lng': (LON_MIN+LON_MAX)/2},
