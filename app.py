@@ -224,6 +224,7 @@ def get_athar_analysis_enhanced(llm_client, context_summary):
 
 
 # --- تعديل دالة إنشاء الخريطة النهائية (داخل app.py) ---
+# --- تعديل دالة إنشاء الخريطة النهائية (داخل app.py) ---
 import time # Required for unique filename
 
 def create_integrated_output_map(profile, pois, competitors_list, proposed_loc, selected_activity):
@@ -233,16 +234,16 @@ def create_integrated_output_map(profile, pois, competitors_list, proposed_loc, 
         return None
 
     center_lat, center_lon = proposed_loc[0], proposed_loc[1]
-    zoom_start = 15 
+    zoom_start = 15
     output_map = folium.Map(location=[center_lat, center_lon], zoom_start=zoom_start, tiles='CartoDB positron')
 
-    # ... (نفس كود إضافة العلامات للموقع المقترح والمنافسين ونقاط الاهتمام) ...
+    # --- إضافة العلامات للموقع المقترح والمنافسين ونقاط الاهتمام ---
+    # (الكود الخاص بإضافة العلامات يبقى كما هو في النسخة السابقة)
     # Add Proposed Location Marker
     folium.Marker(location=proposed_loc, popup=f"<b>الموقع المقترح</b><br>للنشاط: {selected_activity}", tooltip="الموقع المقترح", icon=folium.Icon(color='green', icon='star', prefix='fa')).add_to(output_map)
     # Add Competitors
     if competitors_list:
         comp_cluster = MarkerCluster(name=f"منافسون ({selected_activity})").add_to(output_map)
-        # ... (Loop to add competitor markers to comp_cluster) ...
         for comp in competitors_list:
              dist_text = f"{comp['distance_km']:.2f} كم" if comp.get('distance_km') is not None else "N/A"
              popup_html = f"<b>{comp['name']}</b><br><i>منافس</i><br>المسافة: {dist_text}"
@@ -252,7 +253,6 @@ def create_integrated_output_map(profile, pois, competitors_list, proposed_loc, 
     # Add POIs
     if pois:
         poi_cluster = MarkerCluster(name="نقاط الاهتمام").add_to(output_map)
-        # ... (Loop to add POI markers to poi_cluster) ...
         for poi in pois:
            try:
                 loc = poi.get('location', {})
@@ -261,9 +261,8 @@ def create_integrated_output_map(profile, pois, competitors_list, proposed_loc, 
                 if lat is not None and lon is not None:
                         name = poi.get('name_ar', 'اسم غير معروف')
                         category = poi.get('category', 'غير معروف')
-                        # ... (rest of POI marker code) ...
                         subcategory = poi.get('subcategory', '')
-                        icon_name = 'info-circle'; icon_color = 'blue'      
+                        icon_name = 'info-circle'; icon_color = 'blue'
                         if category.lower() == 'education': icon_name = 'graduation-cap'; icon_color = 'darkblue'
                         elif category.lower() == 'healthcare': icon_name = 'hospital-o'; icon_color = 'red'
                         elif category.lower() == 'shopping': icon_name = 'shopping-cart'; icon_color = 'purple'
@@ -273,72 +272,75 @@ def create_integrated_output_map(profile, pois, competitors_list, proposed_loc, 
                         popup_html = f"<b>{name}</b><br>الفئة: {category} ({subcategory})"
                         folium.Marker( location=[lat, lon], popup=folium.Popup(popup_html, max_width=300),
                             tooltip=name, icon=folium.Icon(color=icon_color, icon=icon_name, prefix='fa', icon_size=(20,20))
-                        ).add_to(poi_cluster) 
-           except Exception as e: print(f"Map Error adding POI {poi.get('poi_id', '')}: {e}") 
+                        ).add_to(poi_cluster)
+           except Exception as e: print(f"Map Error adding POI {poi.get('poi_id', '')}: {e}")
 
     folium.LayerControl().add_to(output_map)
+    # -------------------------------------------------------------
 
     # --- حفظ الخريطة كملف HTML مؤقت ---
     timestamp = int(time.time() * 1000) # Use timestamp for unique filename
-    map_filename = f"output_map_{timestamp}.html" 
+    # Ensure map files are saved where Gradio can serve them (root usually works)
+    map_filename = f"output_map_{timestamp}.html"
     try:
         output_map.save(map_filename)
         print(f"Gradio App: Output map saved to {map_filename}")
         # --- إرجاع مسار الملف ---
-        return map_filename 
+        return map_filename
     except Exception as e:
         print(f"Gradio App Error: Failed to save map to HTML - {e}")
         return None
 
 # --- تعديل الدالة الرئيسية لـ Gradio (داخل app.py) ---
-# --- تعديل الدالة الرئيسية لـ Gradio (داخل app.py) ---
-# تغيير المدخلات لاستقبال قيمة الخريطة
-def run_athar_analysis_gradio(selected_activity, map_location_input): 
+def run_athar_analysis_gradio(selected_activity, map_location_input):
     """Main function called by Gradio interface, taking map input."""
     print(f"Gradio App: Received request - Activity: {selected_activity}, Map Input: {map_location_input}")
 
     # --- التحقق من إدخال الخريطة ---
     if map_location_input is None or not isinstance(map_location_input, dict) or \
        'latitude' not in map_location_input or 'longitude' not in map_location_input:
-        return "الرجاء تحديد الموقع المقترح على الخريطة أولاً بالضغط عليه.", None
-        
+        return "الرجاء تحديد الموقع المقترح على الخريطة أولاً بالضغط عليه.", None # Return None for the second output
+
     proposed_lat = map_location_input['latitude']
     proposed_lon = map_location_input['longitude']
     # -------------------------------
 
-    # ... (نفس كود التحقق من النشاط والمفتاح والبيانات) ...
+    # ... (نفس كود التحقق من النشاط والمفتاح والبيانات ونطاق الإحداثيات) ...
     if not client: return "خطأ: OpenAI API key غير مهيأ.", None
     if not selected_activity: return "الرجاء اختيار نشاط تجاري أولاً.", None
-    # ... (التحقق من نطاق الإحداثيات - مهم هنا) ...
-    if not (24.0 < proposed_lat < 25.5 and 46.0 < proposed_lon < 47.5): # نطاق تقريبي للرياض
+    if not (24.0 < proposed_lat < 25.5 and 46.0 < proposed_lon < 47.5):
          return f"الموقع المحدد على الخريطة ({proposed_lat:.4f}, {proposed_lon:.4f}) يبدو خارج نطاق الرياض المتوقع. حاول مرة أخرى.", None
     if not data_loaded_successfully: return "خطأ: فشل تحميل البيانات.", None
 
-    # 1. تحضير السياق (باستخدام الإحداثيات من الخريطة)
+
+    # 1. تحضير السياق
     context, proposed_location_tuple, competitors_list = prepare_enhanced_context_for_llm(
-        neighborhood_profile, licenses_data, pois_data, 
+        neighborhood_profile, licenses_data, pois_data,
         selected_activity, proposed_lat, proposed_lon
     )
-    
+
     # 2. الحصول على تحليل LLM
-    analysis_text = "فشل في الحصول على التحليل." 
+    analysis_text = "فشل في الحصول على التحليل."
     if context:
         analysis_text = get_athar_analysis_enhanced(client, context)
-        
-    # 3. إنشاء الخريطة المدمجة
+
+    # 3. إنشاء الخريطة المدمجة (والحصول على مسار ملفها)
     map_html_path = None
     if proposed_location_tuple:
         map_html_path = create_integrated_output_map(
-             neighborhood_profile, pois_data, competitors_list, 
+             neighborhood_profile, pois_data, competitors_list,
              proposed_location_tuple, selected_activity
         )
 
-    # 4. بناء استجابة HTML للخريطة (نفس السابق)
-    map_html_content = "<p>لم يتم إنشاء الخريطة.</p>" 
+    # --- بناء استجابة HTML لعرض الخريطة ---
+    map_html_content = "<p style='color:red;'>خطأ: لم يتم إنشاء الخريطة.</p>" # رسالة خطأ افتراضية
     if map_html_path:
-        map_html_content = f'<iframe src="file={map_html_path}" width="100%" height="500px" style="border:none;"></iframe>'
-        
+        # استخدام iframe لعرض ملف HTML (الأكثر توافقية)
+        # Gradio يخدم الملفات من الجذر، لذلك المسار مباشر
+        map_html_content = f'<iframe src="file={map_html_path}" width="100%" height="500px" style="border:none;" title="Interactive Map"></iframe>'
+
     print("Gradio App: Analysis and map generation complete.")
+    # إرجاع النص ومحتوى HTML للخريطة
     return analysis_text, map_html_content
 
 # --- تعديل واجهة Gradio (داخل app.py) ---
@@ -346,38 +348,35 @@ print("Gradio App: Defining Gradio interface...")
 with gr.Blocks(theme=gr.themes.Soft(), title="Athar Investment Analyzer") as iface:
     gr.Markdown("# مشروع أثر - تحليل فرص الاستثمار التجاري")
     gr.Markdown("أداة تجريبية لتحليل مدى مناسبة فتح نشاط تجاري في **حي الياسمين بالرياض**. اختر النشاط وحدد الموقع المقترح على الخريطة.")
-    
+
     with gr.Row():
         with gr.Column(scale=1):
             activity_input = gr.Dropdown(
-                choices=available_activities_list, 
+                choices=available_activities_list,
                 label="1. اختر النشاط التجاري",
-                # info="اختر من قائمة الأنشطة المتوفرة في بيانات الحي." # Info removed for brevity
             )
-            # --- استخدام مكون الخريطة للإدخال ---
-            map_input = gr.Map(
+            map_input = gr.Map( # استخدام gr.Map للإدخال
                 label="2. حدد الموقع المقترح على الخريطة",
-                # يمكنك تحديد قيمة أولية للمركز إذا أردت
-                # value={"latitude": 24.80, "longitude": 46.635} 
             )
-            # ------------------------------------
             submit_button = gr.Button("🚀 تحليل الفرصة", variant="primary")
-            
+
         with gr.Column(scale=2):
             analysis_output = gr.Textbox(
-                label="تحليل وتوصية أثر:", 
+                label="تحليل وتوصية أثر:",
                 lines=12,
-                interactive=False 
+                interactive=False
             )
-            map_output = gr.HTML(label="الخريطة التفاعلية للنتائج") # Use HTML for output map
+            # --- تغيير مكون إخراج الخريطة إلى HTML ---
+            map_output = gr.HTML(label="الخريطة التفاعلية للنتائج")
+            # ----------------------------------------
 
     # --- تحديث ربط المدخلات والمخرجات ---
     submit_button.click(
         fn=run_athar_analysis_gradio,
-        inputs=[activity_input, map_input], # تغيير المدخل الثاني
-        outputs=[analysis_output, map_output]
+        inputs=[activity_input, map_input], # استخدام map_input
+        outputs=[analysis_output, map_output] # استخدام map_output (HTML)
     )
-    
+
     gr.Markdown("--- \n *ملاحظة: هذه الأداة تستخدم بيانات وهمية لأغراض العرض التوضيحي.*")
 
 print("Gradio App: Interface defined.")
@@ -385,4 +384,5 @@ print("Gradio App: Interface defined.")
 # --- Launch the Gradio App (نفس السابق) ---
 if __name__ == "__main__":
     print("Gradio App: Launching interface...")
+    # تأكد من أن الدوال المساعدة (مثل prepare_enhanced_context_for_llm وغيرها) معرفة قبل هذا السطر
     iface.queue().launch(debug=False)
