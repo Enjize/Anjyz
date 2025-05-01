@@ -9,7 +9,7 @@ from geopy.distance import geodesic
 from streamlit_folium import st_folium # For interactive maps in Streamlit
 import time
 
-# --- Page Configuration (Set Title, Icon, Layout) ---
+# --- Page Configuration ---
 st.set_page_config(
     page_title="Anjyz Analyzer | Investment Analysis", # Updated Title
     page_icon="💡", # Changed Icon
@@ -23,12 +23,11 @@ LAT_MIN, LAT_MAX = 24.79, 24.81
 LON_MIN, LON_MAX = 46.62, 46.65
 DEFAULT_MAP_CENTER = [24.80, 46.635] # Default center for Al Yasmin neighborhood
 DEFAULT_MAP_ZOOM = 13
-
 PROFILE_FILE = 'yasmen.json'
 LICENSES_FILE = 'fake_licenses_SA-RIY-YAS_openai.json' # Keeping filename for now
 POIS_FILE = 'fake_pois_SA-RIY-YAS_openai.json'      # Keeping filename for now
 
-# --- Load API Key (Use Streamlit Secrets for Deployment) ---
+# --- Load API Key ---
 client = None
 try:
     # For Hugging Face Spaces / Streamlit Community Cloud, use st.secrets
@@ -58,15 +57,8 @@ except Exception as e:
 # --- Data Loading with Caching ---
 @st.cache_data # Cache data to avoid reloading on every interaction
 def load_data(profile_file, licenses_file, pois_file):
-    """Loads all necessary JSON data files."""
-    profile = None
-    licenses = None
-    pois = None
-    success = True
     try:
-        script_dir = os.path.dirname(__file__)
-        profile_path = os.path.join(script_dir, profile_file)
-        with open(profile_path, 'r', encoding='utf-8') as f:
+        with open(profile_file, 'r', encoding='utf-8') as f:
             profile = json.load(f)
         print(f"Streamlit App: Data loaded successfully from {profile_file}")
     except Exception as e:
@@ -88,7 +80,7 @@ def load_data(profile_file, licenses_file, pois_file):
         pois_path = os.path.join(script_dir, pois_file)
         with open(pois_path, 'r', encoding='utf-8') as f:
             pois = json.load(f)
-        print(f"Streamlit App: Data loaded successfully from {pois_file}")
+        return profile, licenses, pois, True
     except Exception as e:
         st.error(f"Failed to load Points of Interest file '{pois_file}': {e}", icon="❌")
         # Non-critical, app might still work partially
@@ -112,9 +104,8 @@ if 'available_activities_list' not in st.session_state and licenses_data:
                 seen_descs.add(desc_en)
     activities.sort()
     st.session_state.available_activities_list = activities
-    print(f"Streamlit App: Found {len(activities)} unique activities.")
 elif 'available_activities_list' not in st.session_state:
-     st.session_state.available_activities_list = []
+    st.session_state.available_activities_list = []
 
 
 # --- Helper Functions ---
@@ -360,7 +351,7 @@ with input_col1:
 
     # Use st_folium for interactive map input
     if 'map_data' not in st.session_state:
-         st.session_state['map_data'] = {'last_clicked': None}
+        st.session_state['map_data'] = {'last_clicked': None}
 
     # Add a marker if a location is already selected
     if st.session_state['map_data'].get('last_clicked'):
