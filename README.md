@@ -1,5 +1,5 @@
 ---
-title: Enjiz Investment Analyzer (Streamlit)
+title: Anjiz Investment Analyzer (Streamlit)
 emoji: 🗺️💡📊
 colorFrom: blue
 colorTo: indigo
