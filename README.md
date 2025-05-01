@@ -1,40 +1,112 @@
----
-title: Anjiz Investment Analyzer (Streamlit)
-emoji: 🗺️💡📊
-colorFrom: blue
-colorTo: indigo
-sdk: streamlit
-app_file: streamlit_app.py
-pinned: false
-python_version: 3.11
----
+Anjyz – Smart Business Opportunity Analyzer 
+Anjyz is an AI-powered prototype web application built with Streamlit to help entrepreneurs analyze the viability of opening a specific business type at a selected location within the Al Yasmin district in Riyadh. The platform leverages real-time spatial and demographic data to support informed, data-driven investment decisions.
 
-# مشروع أنجز - تحليل فرص الاستثمار التجاري (Streamlit)
+This is a demo using fictional data. Do not use it for real-world investment decisions.
 
-مرحباً بك في العرض التوضيحي لمشروع "أنجز" بواجهة Streamlit!
+What Is Anjyz?
+Anjyz is a smart investment assistant that simulates how technology can guide business owners in making better location-based decisions. It uses:
 
-**الوصف:**
-هذه أداة تجريبية تستخدم الذكاء الاصطناعي (عبر نموذج GPT-4o) لتحليل مدى مناسبة فتح نشاط تجاري معين في موقع مقترح داخل **حي الياسمين بمدينة الرياض**. يعتمد التحليل على مجموعة بيانات وهمية تشمل معلومات ديموغرافية أساسية، التراخيص التجارية القائمة، ونقاط الاهتمام في الحي.
+Interactive maps
 
-**كيفية الاستخدام:**
+Demographic and economic data
 
-1. **اختر النشاط التجاري:** من القائمة المنسدلة في الشريط الجانبي.
-2. **حدد الموقع المقترح:** انقر على الخريطة التفاعلية في الشريط الجانبي لتحديد الموقع الذي تفكر فيه لمشروعك. ستظهر الإحداثيات المختارة أسفل الخريطة.
-3. **اضغط على زر "🚀 تحليل الفرصة"**: انتظر قليلاً حتى يقوم النموذج اللغوي بتحليل البيانات وتقديم توصية.
-4. **راجع النتائج:** ستظهر التوصية النصية والخريطة التفاعلية المحدثة (في الجزء الرئيسي) التي توضح موقعك المقترح، المنافسين (إن وجدوا بنفس النشاط)، ونقاط الاهتمام العامة في المنطقة.
+Existing business license information
 
-**البيانات المستخدمة:**
+Local points of interest (POIs)
 
--  ملف الحي (`yasmen.json`)
--  التراخيص (`fake_licenses_SA-RIY-YAS_openai.json`)
--  نقاط الاهتمام (`fake_pois_SA-RIY-YAS_openai.json`)
+GPT-4o to generate AI-backed recommendations
 
-**ملاحظة هامة:**
-هذا التطبيق هو للعرض التوضيحي فقط ويستخدم بيانات **وهمية**. لا يجب الاعتماد على نتائجه لاتخاذ قرارات استثمارية حقيقية.
+Key Features
+Map-Based Location Selection
+Click anywhere on the interactive map to choose your proposed business location.
 
-**المكتبات الرئيسية المستخدمة:**
+Business Type Dropdown
+Choose from a dynamic list of business types derived from mock commercial license data.
 
--  Streamlit, Streamlit-Folium (للواجهة والخريطة التفاعلية)
--  OpenAI (للنموذج اللغوي)
--  Folium (لإنشاء الخرائط)
--  Geopy (لحساب المسافات)
+AI Investment Recommendation
+Using OpenAI’s GPT-4o, Anjyz generates investment insights based on:
+
+Population size and income levels
+
+Competition density and proximity
+
+Nearby amenities such as schools, clinics, and shopping centers
+
+Competitor Mapping
+Visualize businesses with the same activity type near your chosen location.
+
+POI Analysis
+See public services and community infrastructure that influence business success.
+
+Project Structure
+File	Purpose
+streamlit_app.py	Main application logic and UI built with Streamlit
+yasmen.json	Simulated neighborhood profile including population, roads, and infrastructure
+fake_licenses_SA-RIY-YAS_openai.json	Mock database of commercial licenses in Al Yasmin
+fake_pois_SA-RIY-YAS_openai.json	Fictional list of POIs like schools, clinics, and markets
+requirements.txt	Required Python packages for running the app
+
+Setup Instructions
+1. Install Dependencies
+bash
+Copy
+Edit
+pip install -r requirements.txt
+2. Set Your OpenAI API Key
+If running locally, create a .env file in the project root with the following:
+
+env
+Copy
+Edit
+OPENAI_API_KEY=your-api-key-here
+For cloud deployment (e.g., Streamlit Cloud), use st.secrets.
+
+3. Run the Application
+bash
+Copy
+Edit
+streamlit run streamlit_app.py
+💡 How It Works
+Select a business type (e.g., restaurant, clinic, cafe).
+
+Click on the map to choose a location in Al Yasmin.
+
+Click "Analyze Opportunity".
+
+Anjyz will:
+
+Load nearby competitors and POIs
+
+Analyze demographics and income levels
+
+Use GPT-4o to generate a professional recommendation
+
+View results on an interactive map with markers for competitors and nearby POIs.
+
+🧪 Example Use Case
+Scenario:
+You want to open a café targeting young adults. You select "Cafés" and click a location on Anas Ibn Malik Road.
+
+Anjyz Response:
+
+"This location is promising due to the high concentration of residents aged 18–35, above-average income levels, and few nearby cafés. Nearby services such as schools and banks increase foot traffic potential."
+
+🧰 Technologies Used
+Python 3.11
+
+Streamlit (web UI)
+
+Folium + streamlit-folium (interactive maps)
+
+OpenAI GPT-4o (LLM-based analysis)
+
+Geopy (distance calculations)
+
+dotenv (local API key handling)
+
+⚠️ Disclaimer
+This project uses synthetic data for demonstration purposes only.
+Do not rely on the results for real financial or business decisions.
+
+🧾 License
+This project is for academic, educational, and demonstrative use only.
